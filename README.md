@@ -16,7 +16,6 @@ To see supported options, use
 
 ```
 bunx github:glyh/jmetav --help
-
 ```
 
 ## Developing 
@@ -27,3 +26,7 @@ cd jemtav
 bun install
 bin/cli # See bin/cli --help to have all available params.
 ```
+
+## References
+
+[Yuukiy/JavSP](https://github.com/Yuukiy/JavSP)
