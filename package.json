@@ -1,0 +1,40 @@
+{
+  "name": "jmetav",
+  "version": "0.0.0",
+  "description": "A data scraper for Jav written in TypeScript with Bun.",
+  "main": "build/src/index.js",
+  "types": "build/src/index.d.ts",
+  "files": [
+    "build/src"
+  ],
+  "license": "GPL-3.0-or-later",
+  "keywords": [],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "bun run compile",
+    "pretest": "bun run compile",
+    "posttest": "bun run lint"
+  },
+  "devDependencies": {
+    "gts": "^5.2.0",
+    "typescript": "^5.2.0",
+    "@types/node": "20.8.2"
+  },
+  "dependencies": {
+    "@commander-js/extra-typings": "^12.0.1",
+    "@iarna/toml": "^2.2.5",
+    "commander": "^12.0.0",
+    "consola": "^3.2.3",
+    "liquidjs": "^10.10.1",
+    "puppeteer": "^22.4.0",
+    "ts-deepmerge": "^7.0.0",
+    "ts-pattern": "^5.0.8"
+  },
+  "engines": {
+    "node": ">=11.14.0"
+  }
+}
