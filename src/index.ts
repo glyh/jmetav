@@ -6,6 +6,8 @@ import {match} from 'ts-pattern';
 import {LogLevels} from 'consola';
 
 import {detect} from './detector';
+
+import {work} from './sources/javLib';
 import {
   defaultConfig,
   Config,
@@ -41,13 +43,24 @@ program
     }
     const configParsed = deepmerge(defaultConfig, readToml, cliOptions);
     const env = await environmentFromConfig(configParsed);
+
+    ['SIGINT', 'SIGTERM', 'SIGQUIT'].forEach(signal =>
+      process.on(signal, async () => {
+        await destroyEnvironment(env);
+        // eslint-disable-next-line no-process-exit
+        process.exit();
+      })
+    );
+
     for await (const _ of detect(env));
+    await work(env);
     if (!env.hang) {
-      destroyEnvironment(env);
+      await destroyEnvironment(env);
     } else {
       // NOTE: until @types/bun works with @types/node we don't use Bun.sleep
       const sleep = (ms: number) =>
         new Promise(resolve => setTimeout(resolve, ms));
+      env.logger.info('Hanging...');
       for (;;) {
         await sleep(1000);
       }
