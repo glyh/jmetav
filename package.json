@@ -36,5 +36,8 @@
   },
   "engines": {
     "node": ">=11.14.0"
+  },
+  "bin": {
+    "jmetav" : "bin/cli"
   }
 }
