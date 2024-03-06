@@ -45,6 +45,7 @@ program
     if (!env.hang) {
       destroyEnvironment(env);
     } else {
+      // NOTE: until @types/bun works with @types/node we don't use Bun.sleep
       const sleep = (ms: number) =>
         new Promise(resolve => setTimeout(resolve, ms));
       for (;;) {
