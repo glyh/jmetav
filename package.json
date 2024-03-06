@@ -22,22 +22,25 @@
   "devDependencies": {
     "gts": "^5.2.0",
     "typescript": "^5.2.0",
-    "@types/node": "20.8.2"
+    "@types/node": "20.8.2",
+    "@types/mustache": "^4.2.5"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^12.0.1",
     "@iarna/toml": "^2.2.5",
     "commander": "^12.0.0",
     "consola": "^3.2.3",
-    "liquidjs": "^10.10.1",
+    "mustache": "^4.2.0",
     "puppeteer": "^22.4.0",
     "ts-deepmerge": "^7.0.0",
-    "ts-pattern": "^5.0.8"
+    "ts-duration": "^1.1.0",
+    "ts-pattern": "^5.0.8",
+    "typed-duration": "^2.0.0"
   },
   "engines": {
     "node": ">=11.14.0"
   },
   "bin": {
-    "jmetav" : "bin/cli"
+    "jmetav": "bin/cli"
   }
 }

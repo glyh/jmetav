@@ -7,13 +7,14 @@ import {LogLevels} from 'consola';
 
 import {detect} from './detector';
 
-import {work} from './sources/javLib';
 import {
   defaultConfig,
   Config,
   environmentFromConfig,
   destroyEnvironment,
 } from './environment';
+import {scrapeMovieFromSource} from './sources';
+import {builtinSources} from './builtinSources';
 
 program
   .option('-c, --config <file>', 'config file')
@@ -53,7 +54,12 @@ program
     );
 
     for await (const _ of detect(env));
-    await work(env);
+    await scrapeMovieFromSource(
+      'MIDV-623',
+      'JAVLibrary',
+      env,
+      builtinSources.JAVLibrary
+    );
     if (!env.hang) {
       await destroyEnvironment(env);
     } else {

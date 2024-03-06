@@ -1,12 +1,15 @@
 import {ConsolaInstance, createConsola, LogLevel} from 'consola';
-import {Liquid, Template} from 'liquidjs';
 import {Browser, launch} from 'puppeteer';
 
 export type MatchRuleConfig = readonly [string, string, string];
 
 export type Config = {
+  from: string | null;
+  logLevel: LogLevel;
+  hang: boolean;
+  locale: 'en_US' | 'zh_CN' | 'zh_TW' | 'ja_JP';
   scraper: {
-    proxy: string | undefined;
+    proxy: string | null;
     headless: boolean;
     implementation: string;
   };
@@ -15,12 +18,12 @@ export type Config = {
     ignoreKeywordRegex: string;
     matchRules: MatchRuleConfig[];
   };
-  from: string | undefined;
-  logLevel: LogLevel;
-  hang: boolean;
 };
 
 export const defaultConfig = {
+  // logLevel is set by arg parser
+  hang: false,
+  locale: 'zh_CN',
   scraper: {
     proxy: 'socks5://127.0.0.1:20170',
     headless: true,
@@ -44,11 +47,9 @@ export const defaultConfig = {
       ['(?<CODE>\\d{6}[-_]\\d{2,3})', '{{CODE}}', 'REGULAR-UNCENSORED'],
     ] as MatchRuleConfig[],
   },
-  // logLevel is set by arg parser
-  hang: false,
 } as Config;
 
-export type MatchRule = readonly [RegExp, Template[], string];
+export type MatchRule = readonly [RegExp, string, string];
 
 export type Detector = {
   extensions: string[];
@@ -57,19 +58,19 @@ export type Detector = {
 };
 
 export type Scraper = {
-  proxy: string | undefined;
-  proxiedBrowser: Browser | undefined;
+  proxy: string | null;
+  proxiedBrowser: Browser | null;
   unproxiedBrowser: Browser;
 };
 
 export type Environment = {
   logger: ConsolaInstance;
-  templater: Liquid;
 
-  from: string | undefined;
+  from: string | null;
   detector: Detector;
   scraper: Scraper;
   hang: boolean;
+  locale: string;
 };
 
 async function generateBrowser(conf: Config, proxied: boolean) {
@@ -93,23 +94,19 @@ async function scraperFromConfig(conf: Config) {
   } else {
     return {
       proxy: conf.scraper.proxy,
-      proxiedBrowser: undefined,
+      proxiedBrowser: null,
       unproxiedBrowser: await generateBrowser(conf, false),
     } as Scraper;
   }
 }
 
-function detectorFromConfig(templater: Liquid, conf: Config) {
+function detectorFromConfig(conf: Config) {
   return {
     extensions: conf.detector.extensions,
     ignoreKeywordRegex: RegExp(conf.detector.ignoreKeywordRegex, 'gi'),
     matchRules: conf.detector.matchRules.map(
       ([regex_detect, template, tag]: MatchRuleConfig) => {
-        return [
-          RegExp(regex_detect, 'gi'),
-          templater.parse(template),
-          tag,
-        ] as MatchRule;
+        return [RegExp(regex_detect, 'gi'), template, tag] as MatchRule;
       }
     ),
   } as Detector;
@@ -117,13 +114,12 @@ function detectorFromConfig(templater: Liquid, conf: Config) {
 
 export async function environmentFromConfig(conf: Config) {
   const logger = createConsola({level: conf.logLevel});
-  const templater = new Liquid();
 
   return {
     logger: logger,
-    templater: templater,
     from: conf.from,
-    detector: detectorFromConfig(templater, conf),
+    locale: conf.locale,
+    detector: detectorFromConfig(conf),
     scraper: await scraperFromConfig(conf),
     hang: conf.hang,
   } as Environment;
