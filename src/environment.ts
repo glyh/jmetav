@@ -17,6 +17,7 @@ export type Config = {
   };
   from: string | undefined;
   logLevel: LogLevel;
+  hang: boolean;
 };
 
 export const defaultConfig = {
@@ -43,6 +44,8 @@ export const defaultConfig = {
       ['(?<CODE>\\d{6}[-_]\\d{2,3})', '{{CODE}}', 'REGULAR-UNCENSORED'],
     ] as MatchRuleConfig[],
   },
+  // logLevel is set by arg parser
+  hang: false,
 } as Config;
 
 export type MatchRule = readonly [RegExp, Template[], string];
@@ -55,7 +58,7 @@ export type Detector = {
 
 export type Scraper = {
   proxy: string | undefined;
-  proxiedBrowser: Browser;
+  proxiedBrowser: Browser | undefined;
   unproxiedBrowser: Browser;
 };
 
@@ -66,6 +69,7 @@ export type Environment = {
   from: string | undefined;
   detector: Detector;
   scraper: Scraper;
+  hang: boolean;
 };
 
 async function generateBrowser(conf: Config, proxied: boolean) {
@@ -80,15 +84,19 @@ async function generateBrowser(conf: Config, proxied: boolean) {
 }
 
 async function scraperFromConfig(conf: Config) {
-  console.log('here');
-  const proxiedBrower = await generateBrowser(conf, true);
-  console.log('we are');
-
-  return {
-    proxy: conf.scraper.proxy,
-    // proxiedBrowser: await generateBrowser(conf, browserPath, true),
-    // unproxiedBrowser: await generateBrowser(conf, browserPath, false),
-  } as Scraper;
+  if (conf.scraper.proxy) {
+    return {
+      proxy: conf.scraper.proxy,
+      proxiedBrowser: await generateBrowser(conf, true),
+      unproxiedBrowser: await generateBrowser(conf, false),
+    } as Scraper;
+  } else {
+    return {
+      proxy: conf.scraper.proxy,
+      proxiedBrowser: undefined,
+      unproxiedBrowser: await generateBrowser(conf, false),
+    } as Scraper;
+  }
 }
 
 function detectorFromConfig(templater: Liquid, conf: Config) {
@@ -117,5 +125,13 @@ export async function environmentFromConfig(conf: Config) {
     from: conf.from,
     detector: detectorFromConfig(templater, conf),
     scraper: await scraperFromConfig(conf),
+    hang: conf.hang,
   } as Environment;
+}
+
+export async function destroyEnvironment(env: Environment) {
+  if (env.scraper.proxiedBrowser) {
+    await env.scraper.proxiedBrowser.close();
+  }
+  await env.scraper.unproxiedBrowser.close();
 }

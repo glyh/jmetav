@@ -6,7 +6,12 @@ import {match} from 'ts-pattern';
 import {LogLevels} from 'consola';
 
 import {detect} from './detector';
-import {defaultConfig, Config, environmentFromConfig} from './environment';
+import {
+  defaultConfig,
+  Config,
+  environmentFromConfig,
+  destroyEnvironment,
+} from './environment';
 
 program
   .option('-c, --config <file>', 'config file')
@@ -37,5 +42,14 @@ program
     const configParsed = deepmerge(defaultConfig, readToml, cliOptions);
     const env = await environmentFromConfig(configParsed);
     for await (const _ of detect(env));
+    if (!env.hang) {
+      destroyEnvironment(env);
+    } else {
+      const sleep = (ms: number) =>
+        new Promise(resolve => setTimeout(resolve, ms));
+      for (;;) {
+        await sleep(1000);
+      }
+    }
   })
   .parse();
