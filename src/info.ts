@@ -86,7 +86,7 @@ export async function saveNFO(env: Environment, movie: Partial<Movie>) {
   const xml = builder.end({prettyPrint: true});
   const nfoPath = path.join(targetPath, 'movie.nfo');
   pool.push(fsp.writeFile(nfoPath, xml));
-  console.log(`Writing nfo to ${nfoPath} with cover to ${coverPath}`);
+  env.logger.info(`Writing nfo to ${nfoPath} with cover to ${coverPath}`);
   await Promise.all(pool);
   return true;
 }

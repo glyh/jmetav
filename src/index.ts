@@ -60,10 +60,8 @@ program
     );
 
     const jl = new JavLibrary();
-    await jl.scrapeMovieFromSource(env, 'NACR-772');
-    const detected = detect(env);
     const promises: Promise<void>[] = [];
-    for await (const [path, id, idTag] of detected) {
+    for await (const [path, id, idTag] of detect(env)) {
       const p = jl.scrapeMovieFromSource(env, id).then(async movies => {
         const pool: Promise<boolean>[] = [];
         for (let m of movies) {
@@ -73,7 +71,11 @@ program
             pool.push(saveNFO(env, m));
           }
         }
-        await Promise.all(pool);
+        if (pool.length === 0) {
+          env.logger.error(`Failed to grab information for ${id} at ${path}`)
+        } else {
+          await Promise.all(pool);
+        }
       });
       promises.push(p);
     }

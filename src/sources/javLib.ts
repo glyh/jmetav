@@ -114,15 +114,8 @@ async function collectOne(
   }
 }
 
-const waitReleaseTime = 700; // ms
+const waitReleaseTime = 4000; // ms
 const javLibSpeedLimit: AsyncLock = new AsyncLock();
-async function speedLimitedGoto(page: Page, url: string) {
-  javLibSpeedLimit.acquire(
-    'javlib',
-    async () => await Bun.sleep(waitReleaseTime)
-  );
-  await page.goto(url);
-}
 
 export class JavLibrary extends Source {
   async scrapeMovieFromSource(env: Environment, ID: string) {
@@ -139,6 +132,11 @@ export class JavLibrary extends Source {
     const urlString = `https://www.javlibrary.com/${env.locale}/vl_searchbyid.php?keyword=${ID}`;
     const url = new URL(urlString);
     env.logger.info(`Scraping from ${url}`);
+
+    await javLibSpeedLimit.acquire(
+      'javlib',
+      async () => await Bun.sleep(waitReleaseTime)
+    );
     const page = await browser.newPage();
 
     await page.setCookie(...cookify(url.host, {over18: '18'}));
@@ -149,7 +147,7 @@ export class JavLibrary extends Source {
     });
 
     try {
-      await speedLimitedGoto(page, urlString);
+      await page.goto(urlString);
       const url = page.url();
       env.logger.log(url);
 
@@ -178,7 +176,7 @@ export class JavLibrary extends Source {
           const targetUrl = `https://www.javlibrary.com/${env.locale}/${relativeUrl}`;
 
           env.logger.info(`Going to candidate "${title}" at ${targetUrl}`);
-          await speedLimitedGoto(page, targetUrl);
+          await page.goto(targetUrl);
           const cur = await collectOne(env, page);
           if (cur !== null) {
             result.push(cur);

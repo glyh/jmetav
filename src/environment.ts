@@ -158,7 +158,6 @@ export async function environmentFromConfig(conf: Config) {
     detector: detectorFromConfig(conf),
     scraper: await scraperFromConfig(conf),
     hang: conf.hang,
-    locks: {},
   } as Environment;
 }
 
