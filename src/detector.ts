@@ -1,7 +1,6 @@
 import {Environment} from './environment';
 import * as fs from 'fs';
 import * as path from 'path';
-import Mustache = require('mustache');
 
 // path, id, tag
 type MovieIdResult = readonly [string, string, string];
@@ -47,8 +46,10 @@ async function getMovieId(
   for (const [regex_detect, template, tag] of env.detector.matchRules) {
     const matched = regex_detect.exec(baseNameSanitized);
     if (!matched) continue;
-    // console.log(Mustache.render);
-    const rendered = Mustache.render(template, matched.groups);
+    const rendered = await env.templater.parseAndRender(
+      template,
+      matched.groups
+    );
     return [fullPath, rendered, tag] as MovieIdResult;
   }
   return null;
