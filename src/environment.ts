@@ -26,6 +26,11 @@ export type Config = {
     ignoreKeywordRegex: string;
     matchRules: MatchRuleConfig[];
   };
+  sources: {
+    javLib: {
+      timeout: number;
+    };
+  };
 };
 
 export const defaultConfig = {
@@ -69,39 +74,22 @@ export const defaultConfig = {
       ['(?<CODE>\\d{6}[-_]\\d{2,3})', '{{CODE}}', 'REGULAR-UNCENSORED'],
     ] as MatchRuleConfig[],
   },
+  sources: {
+    javLib: {
+      timeout: 3000,
+    },
+  },
 } as Config;
-
-export type MatchRule = readonly [RegExp, string, string];
-
-export type Detector = {
-  extensions: string[];
-  ignoreKeywordRegex: RegExp;
-  matchRules: MatchRule[];
-};
-
-export type Scraper = {
-  proxy: {
-    protocol: string;
-    host: string;
-    port: number;
-  } | null;
-  pathFormatter: string;
-  proxiedBrowser: Browser | null;
-  unproxiedBrowser: Browser;
-};
 
 export type Environment = {
   logger: ConsolaInstance;
   templater: Liquid;
-  // if null, do nothing and halt
-  from: string;
-  // if null program use the same as from
-  to: string | null;
-  detector: Detector;
-  scraper: Scraper;
-  hang: boolean;
-  locale: string;
+  browser: Browser;
+  browserProxied: Browser | null;
 };
+
+export const env = {} as Environment;
+export let conf = {} as Config;
 
 async function generateBrowser(conf: Config, proxied: boolean) {
   const args = [] as string[];
@@ -116,54 +104,20 @@ async function generateBrowser(conf: Config, proxied: boolean) {
   });
 }
 
-async function scraperFromConfig(conf: Config) {
+export async function loadConfig(config: Config) {
+  conf = config;
+  env.browser = await generateBrowser(conf, false);
   if (conf.scraper.proxy) {
-    return {
-      proxy: conf.scraper.proxy,
-      proxiedBrowser: await generateBrowser(conf, true),
-      unproxiedBrowser: await generateBrowser(conf, false),
-      pathFormatter: conf.scraper.pathFormatter,
-    } as Scraper;
+    env.browserProxied = await generateBrowser(conf, true);
   } else {
-    return {
-      proxy: conf.scraper.proxy,
-      proxiedBrowser: null,
-      unproxiedBrowser: await generateBrowser(conf, false),
-      pathFormatter: conf.scraper.pathFormatter,
-    } as Scraper;
+    env.browserProxied = null;
   }
+  env.templater = new Liquid();
+  env.logger = createConsola({level: conf.logLevel});
 }
-
-function detectorFromConfig(conf: Config) {
-  return {
-    extensions: conf.detector.extensions,
-    ignoreKeywordRegex: RegExp(conf.detector.ignoreKeywordRegex, 'i'),
-    matchRules: conf.detector.matchRules.map(
-      ([regex_detect, template, tag]: MatchRuleConfig) => {
-        return [RegExp(regex_detect, 'i'), template, tag] as MatchRule;
-      }
-    ),
-  } as Detector;
-}
-
-export async function environmentFromConfig(conf: Config) {
-  const logger = createConsola({level: conf.logLevel});
-
-  return {
-    logger: logger,
-    templater: new Liquid(),
-    from: conf.from,
-    to: conf.to,
-    locale: conf.locale,
-    detector: detectorFromConfig(conf),
-    scraper: await scraperFromConfig(conf),
-    hang: conf.hang,
-  } as Environment;
-}
-
-export async function destroyEnvironment(env: Environment) {
-  if (env.scraper.proxiedBrowser) {
-    await env.scraper.proxiedBrowser.close();
+export async function destroyEnvironment() {
+  if (env.browserProxied) {
+    await env.browserProxied.close();
   }
-  await env.scraper.unproxiedBrowser.close();
+  await env.browser.close();
 }

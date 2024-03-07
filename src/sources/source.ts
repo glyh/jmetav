@@ -1,6 +1,5 @@
 import {CookieParam} from 'puppeteer';
 import {Movie} from '../movie';
-import {Environment} from '../environment';
 
 type attrSelector = 'text' | ['attr', string];
 export type ScrapeRule = readonly [string, attrSelector, 'single' | 'multi'];
@@ -21,8 +20,5 @@ export function cookify(domain: string, input: Cookie): CookieParam[] {
 }
 
 export abstract class Source {
-  abstract scrapeMovieFromSource(
-    env: Environment,
-    ID: string
-  ): Promise<Partial<Movie>[]>;
+  abstract scrapeMovieFromSource(ID: string): Promise<Partial<Movie>[]>;
 }

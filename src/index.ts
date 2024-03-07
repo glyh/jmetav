@@ -1,4 +1,5 @@
 import {program, Option} from '@commander-js/extra-typings';
+import {createConsola} from 'consola';
 import * as TOML from '@iarna/toml';
 import {promises as fsp} from 'fs';
 import {merge as deepmerge} from 'ts-deepmerge';
@@ -8,8 +9,10 @@ import {LogLevels} from 'consola';
 import {
   defaultConfig,
   Config,
-  environmentFromConfig,
+  loadConfig,
   destroyEnvironment,
+  conf,
+  env,
 } from './environment';
 import {detect} from './detector';
 import {JavLibrary} from './sources/javLib';
@@ -25,13 +28,6 @@ program
   )
   .action(async options => {
     let readToml = {};
-    if (typeof options.config === 'string') {
-      // NOTE: until @types/bun works with @types/node we don't use Bun.file
-      const configFile = await fsp.readFile(options.config);
-      readToml = TOML.parse(configFile.toString());
-    } else {
-      'We should bail out';
-    }
     const cliOptions = {
       logLevel: match(options.logLevel)
         .with('debug', () => LogLevels.debug)
@@ -40,39 +36,49 @@ program
         .with('info', () => LogLevels.info)
         .exhaustive(),
     } as Config;
+    if (typeof options.config === 'string') {
+      // NOTE: until @types/bun works with @types/node we don't use Bun.file
+      const configFile = await fsp.readFile(options.config);
+      readToml = TOML.parse(configFile.toString());
+    } else {
+      const loggerTemp = createConsola({level: cliOptions.logLevel});
+      loggerTemp.info('Please specify a config file');
+      return;
+    }
     if (options.from) {
       cliOptions.from = options.from;
     }
     const configParsed = deepmerge(defaultConfig, readToml, cliOptions);
-    const env = await environmentFromConfig(configParsed);
+    await loadConfig(configParsed);
 
-    async function exit() {
-      await destroyEnvironment(env);
-      // eslint-disable-next-line no-process-exit
-      process.exit();
-    }
-    if (!env.from) {
-      env.logger.error('No directory specified, exiting');
-      await exit();
+    if (!conf.from) {
+      const loggerTemp = createConsola({level: cliOptions.logLevel});
+      loggerTemp.info('No directory specified, exiting');
+      await destroyEnvironment();
+      return;
     }
     ['SIGINT', 'SIGTERM', 'SIGQUIT'].forEach(signal =>
-      process.on(signal, exit)
+      process.on(signal, async () => {
+        await destroyEnvironment();
+        // eslint-disable-next-line no-process-exit
+        process.exit();
+      })
     );
 
     const jl = new JavLibrary();
     const promises: Promise<void>[] = [];
-    for await (const [path, id, idTag] of detect(env)) {
-      const p = jl.scrapeMovieFromSource(env, id).then(async movies => {
+    for await (const [path, id, idTag] of detect()) {
+      const p = jl.scrapeMovieFromSource(id).then(async movies => {
         const pool: Promise<boolean>[] = [];
         for (let m of movies) {
           if (m.ID) {
             m = sanitizeMovie(m);
             env.logger.info(m);
-            pool.push(saveNFO(env, m));
+            pool.push(saveNFO(m));
           }
         }
         if (pool.length === 0) {
-          env.logger.error(`Failed to grab information for ${id} at ${path}`)
+          env.logger.error(`Failed to grab information for ${id} at ${path}`);
         } else {
           await Promise.all(pool);
         }
@@ -80,8 +86,8 @@ program
       promises.push(p);
     }
     await Promise.all(promises);
-    if (!env.hang) {
-      await destroyEnvironment(env);
+    if (!conf.hang) {
+      await destroyEnvironment();
     } else {
       // NOTE: until @types/bun works with @types/node we don't use Bun.sleep
       const sleep = (ms: number) =>

@@ -3,7 +3,7 @@ import {createWriteStream} from 'fs';
 import * as XmlBuilder from 'xmlbuilder2';
 
 import {Movie} from './movie';
-import {Environment} from './environment';
+import { env, conf } from './environment';
 
 import {promises as fsp} from 'fs';
 import * as path from 'path';
@@ -49,7 +49,7 @@ export async function downloadFile(
   });
 }
 
-export async function saveNFO(env: Environment, movie: Partial<Movie>) {
+export async function saveNFO(movie: Partial<Movie>) {
   let builder = XmlBuilder.create({version: '1.0'});
   builder = builder.ele('movie'); // <movie>
   if (movie.plot) builder = builder.ele('plot').txt(movie.plot).up();
@@ -59,10 +59,10 @@ export async function saveNFO(env: Environment, movie: Partial<Movie>) {
     builder = builder.ele('releasedate').txt(movie.publishDate).up();
   if (movie.producer) builder = builder.ele('studio').txt(movie.producer).up();
   if (movie.ID) builder = builder.ele('numid').txt(movie.ID).up();
-  const baseDir = env.to || env.from;
+  const baseDir = conf.to || conf.from;
   let targetPath = path.join(
     baseDir,
-    await env.templater.parseAndRender(env.scraper.pathFormatter, movie)
+    await env.templater.parseAndRender(conf.scraper.pathFormatter, movie)
   );
   targetPath = path.resolve(targetPath);
   await fsp.mkdir(targetPath, {recursive: true});
@@ -71,7 +71,7 @@ export async function saveNFO(env: Environment, movie: Partial<Movie>) {
   if (movie.cover) {
     pool.push(
       downloadFile(movie.cover, coverPath, {
-        proxy: movie.srcProxied ? env.scraper.proxy : {},
+        proxy: movie.srcProxied ? conf.scraper.proxy : {},
       })
     );
     builder.ele('art').ele('poster').txt('cover.jpg');

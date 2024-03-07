@@ -1,4 +1,4 @@
-import {Environment} from './environment';
+import {conf, env} from './environment';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -19,11 +19,11 @@ async function* walk(
   }
 }
 
-export async function* detect(env: Environment) {
-  if (typeof env.from === 'string') {
-    for await (const filePath of walk(env.from, env.detector.extensions)) {
+export async function* detect() {
+  if (typeof conf.from === 'string') {
+    for await (const filePath of walk(conf.from, conf.detector.extensions)) {
       env.logger.info(`Detecting ${filePath}...`);
-      const movieIdResult = await getMovieId(env, filePath);
+      const movieIdResult = await getMovieId(filePath);
       if (movieIdResult) {
         const [, movieId, tag] = movieIdResult;
         env.logger.info(`${path.basename(filePath)} -> ${movieId} (${tag})`);
@@ -33,18 +33,15 @@ export async function* detect(env: Environment) {
   }
 }
 
-async function getMovieId(
-  env: Environment,
-  fullPath: string
-): Promise<MovieIdResult | null> {
+async function getMovieId(fullPath: string): Promise<MovieIdResult | null> {
   const baseName = path.basename(fullPath);
   const baseNameSanitized = baseName.replace(
-    env.detector.ignoreKeywordRegex,
+    new RegExp(conf.detector.ignoreKeywordRegex),
     ''
   );
 
-  for (const [regex_detect, template, tag] of env.detector.matchRules) {
-    const matched = regex_detect.exec(baseNameSanitized);
+  for (const [regex_detect, template, tag] of conf.detector.matchRules) {
+    const matched = new RegExp(regex_detect).exec(baseNameSanitized);
     if (!matched) continue;
     const rendered = await env.templater.parseAndRender(
       template,

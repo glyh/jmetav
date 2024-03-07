@@ -2,7 +2,7 @@ import {Page} from 'puppeteer';
 import AsyncLock = require('async-lock');
 
 import {Movie} from '../movie';
-import {Environment} from '../environment';
+import {conf, env} from '../environment';
 import {ScrapeRule, Source, cookify} from './source';
 
 export const sourceTag = 'JavLibrary';
@@ -25,10 +25,7 @@ const rules = {
   ],
 } as {[Name: string]: ScrapeRule};
 
-async function collectOne(
-  env: Environment,
-  page: Page
-): Promise<Partial<Movie> | null> {
+async function collectOne(page: Page): Promise<Partial<Movie> | null> {
   try {
     const keys = [] as string[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,28 +111,27 @@ async function collectOne(
   }
 }
 
-const waitReleaseTime = 4000; // ms
 const javLibSpeedLimit: AsyncLock = new AsyncLock();
 
 export class JavLibrary extends Source {
-  async scrapeMovieFromSource(env: Environment, ID: string) {
-    let browser = env.scraper.unproxiedBrowser;
+  async scrapeMovieFromSource(ID: string) {
+    let browser = env.browser;
 
-    if (env.scraper.proxiedBrowser) {
-      browser = env.scraper.proxiedBrowser;
+    if (env.browserProxied) {
+      browser = env.browserProxied;
     } else {
       env.logger.warn(
         'Source JavLibrary prefers proxy but proxy is not set, using unproxied browser...'
       );
     }
 
-    const urlString = `https://www.javlibrary.com/${env.locale}/vl_searchbyid.php?keyword=${ID}`;
+    const urlString = `https://www.javlibrary.com/${conf.locale}/vl_searchbyid.php?keyword=${ID}`;
     const url = new URL(urlString);
     env.logger.info(`Scraping from ${url}`);
 
     await javLibSpeedLimit.acquire(
       'javlib',
-      async () => await Bun.sleep(waitReleaseTime)
+      async () => await Bun.sleep(conf.sources.javLib.timeout)
     );
     const page = await browser.newPage();
 
@@ -173,18 +169,18 @@ export class JavLibrary extends Source {
           const [ID_got, title, relativeUrl] = candidate;
           if (ID_got !== ID) continue;
 
-          const targetUrl = `https://www.javlibrary.com/${env.locale}/${relativeUrl}`;
+          const targetUrl = `https://www.javlibrary.com/${conf.locale}/${relativeUrl}`;
 
           env.logger.info(`Going to candidate "${title}" at ${targetUrl}`);
           await page.goto(targetUrl);
-          const cur = await collectOne(env, page);
+          const cur = await collectOne(page);
           if (cur !== null) {
             result.push(cur);
           }
         }
         return result;
       } else {
-        const result = await collectOne(env, page);
+        const result = await collectOne(page);
         if (result === null) {
           return [];
         } else {
