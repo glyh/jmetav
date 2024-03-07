@@ -8,6 +8,10 @@ import {Environment} from './environment';
 import {promises as fsp} from 'fs';
 import * as path from 'path';
 
+export function sanitizeMovie(m: Partial<Movie>): Partial<Movie> {
+  return m;
+}
+
 // download with puppeteer now seems broken or at least VERY verbose now.
 // https://stackoverflow.com/questions/41938718/how-to-download-files-using-axios
 export async function downloadFile(
@@ -62,10 +66,14 @@ export async function saveNFO(env: Environment, movie: Partial<Movie>) {
   );
   targetPath = path.resolve(targetPath);
   await fsp.mkdir(targetPath, {recursive: true});
+  const pool = [] as Promise<any>[];
+  const coverPath = path.join(targetPath, 'cover.jpg');
   if (movie.cover) {
-    downloadFile(movie.cover, path.join(targetPath, 'cover.jpg'), {
-      proxy: movie.srcProxied ? env.scraper.proxy : {},
-    });
+    pool.push(
+      downloadFile(movie.cover, coverPath, {
+        proxy: movie.srcProxied ? env.scraper.proxy : {},
+      })
+    );
     builder.ele('art').ele('poster').txt('cover.jpg');
   }
   for (const genre of movie.genres || []) {
@@ -76,6 +84,9 @@ export async function saveNFO(env: Environment, movie: Partial<Movie>) {
   }
   builder = builder.up(); // </movie>
   const xml = builder.end({prettyPrint: true});
-  await fsp.writeFile(path.join(targetPath, 'movie.nfo'), xml);
+  const nfoPath = path.join(targetPath, 'movie.nfo');
+  pool.push(fsp.writeFile(nfoPath, xml));
+  console.log(`Writing nfo to ${nfoPath} with cover to ${coverPath}`);
+  await Promise.all(pool);
   return true;
 }

@@ -1,8 +1,9 @@
+import {Page} from 'puppeteer';
+import AsyncLock = require('async-lock');
+
 import {Movie} from '../movie';
 import {Environment} from '../environment';
-
 import {ScrapeRule, Source, cookify} from './source';
-import {Page} from 'puppeteer';
 
 export const sourceTag = 'JavLibrary';
 
@@ -75,20 +76,52 @@ async function collectOne(
     }
     const resolved = await Promise.all(running);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const output: any = {};
+    const output: Partial<Movie> = {};
     for (let i = 0; i < resolved.length; ++i) {
+      // @ts-ignore
       output[keys[i]] = resolved[i];
     }
 
     // deal with some meta info
-    output['srcProxied'] = true;
+    output.srcProxied = true;
+
+    if (output.title && output.ID && output.title.startsWith(output.ID)) {
+      output.title = output.title.substring(output.ID.length);
+    }
+    if (output.title && output.actresses) {
+      const lenTit = output.title.length;
+      for (const actress of output.actresses) {
+        if (output.title.endsWith(actress)) {
+          const lenAct = actress.length;
+          output.title = output.title.substring(0, lenTit - lenAct);
+        }
+      }
+    }
+    if (output.score) {
+      // console.log(`|${output.score}|`);
+      const matched = /\((\d\.\d\d)\)/.exec(output.score);
+      // console.log(matched, matched?.groups);
+      if (matched) {
+        output.score = matched[1];
+      }
+      // console.log(output.score);
+    }
 
     return output as Partial<Movie>;
   } catch (e) {
     env.logger.error(e);
     return null;
   }
+}
+
+const waitReleaseTime = 700; // ms
+const javLibSpeedLimit: AsyncLock = new AsyncLock();
+async function speedLimitedGoto(page: Page, url: string) {
+  javLibSpeedLimit.acquire(
+    'javlib',
+    async () => await Bun.sleep(waitReleaseTime)
+  );
+  await page.goto(url);
 }
 
 export class JavLibrary extends Source {
@@ -116,7 +149,7 @@ export class JavLibrary extends Source {
     });
 
     try {
-      await page.goto(urlString);
+      await speedLimitedGoto(page, urlString);
       const url = page.url();
       env.logger.log(url);
 
@@ -145,7 +178,7 @@ export class JavLibrary extends Source {
           const targetUrl = `https://www.javlibrary.com/${env.locale}/${relativeUrl}`;
 
           env.logger.info(`Going to candidate "${title}" at ${targetUrl}`);
-          await page.goto(targetUrl);
+          await speedLimitedGoto(page, targetUrl);
           const cur = await collectOne(env, page);
           if (cur !== null) {
             result.push(cur);
@@ -154,7 +187,6 @@ export class JavLibrary extends Source {
         return result;
       } else {
         const result = await collectOne(env, page);
-        await page.close();
         if (result === null) {
           return [];
         } else {
@@ -162,9 +194,10 @@ export class JavLibrary extends Source {
         }
       }
     } catch (e) {
-      await page.close();
       env.logger.error(e);
       return [];
+    } finally {
+      await page.close();
     }
   }
 }

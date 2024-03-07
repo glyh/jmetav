@@ -40,7 +40,7 @@
     "typed-duration": "^2.0.0"
   },
   "engines": {
-    "node": ">=11.14.0"
+    "node": ">=20.0.0"
   },
   "bin": {
     "jmetav": "bin/cli"

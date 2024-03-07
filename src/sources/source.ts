@@ -21,9 +21,6 @@ export function cookify(domain: string, input: Cookie): CookieParam[] {
 }
 
 export abstract class Source {
-  // abstract prefersProxy: boolean;
-  // abstract cookies: Cookie;
-  // abstract urlTemplate: string;
   abstract scrapeMovieFromSource(
     env: Environment,
     ID: string

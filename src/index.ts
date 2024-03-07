@@ -13,7 +13,7 @@ import {
 } from './environment';
 import {detect} from './detector';
 import {JavLibrary} from './sources/javLib';
-import {saveNFO} from './info';
+import {sanitizeMovie, saveNFO} from './info';
 
 program
   .option('-c, --config <file>', 'config file')
@@ -60,16 +60,24 @@ program
     );
 
     const jl = new JavLibrary();
-    for await (const [path, id, idTag] of detect(env)) {
-      const movies = await jl.scrapeMovieFromSource(env, id);
-      for (const m of movies) {
-        // at least we have the ID
-        if (m.ID) {
-          env.logger.info(m);
-          saveNFO(env, m);
+    await jl.scrapeMovieFromSource(env, 'NACR-772');
+    const detected = detect(env);
+    const promises: Promise<void>[] = [];
+    for await (const [path, id, idTag] of detected) {
+      const p = jl.scrapeMovieFromSource(env, id).then(async movies => {
+        const pool: Promise<boolean>[] = [];
+        for (let m of movies) {
+          if (m.ID) {
+            m = sanitizeMovie(m);
+            env.logger.info(m);
+            pool.push(saveNFO(env, m));
+          }
         }
-      }
+        await Promise.all(pool);
+      });
+      promises.push(p);
     }
+    await Promise.all(promises);
     if (!env.hang) {
       await destroyEnvironment(env);
     } else {
