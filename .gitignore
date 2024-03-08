@@ -131,3 +131,6 @@ dist
 
 # TypeScript Build
 build/
+
+/test.toml
+/test.sqlite3

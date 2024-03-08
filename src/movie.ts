@@ -2,16 +2,17 @@ export type Movie = {
   srcProxied: boolean;
   ruleTag: string;
   ID: string;
-  urls: string[]; // May have multiple source for a single movie.
+  urls: string[];
   plot: string;
   cover: string;
-  // bigCover: URL; // what is big cover?
-  genres: string[]; // TODO: genreID to deduplicate, genreNorm to normalize
+  genres: string[];
+  genreIDs: string[];
   score: string;
-  title: string; // TODO: unsanitized title at origTitle
+  title: string;
   magnet: string;
   series: string;
   actresses: string[];
+  actressIDs: string[];
   director: string;
   duration: string;
   producer: string;

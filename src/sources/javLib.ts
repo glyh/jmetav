@@ -3,7 +3,7 @@ import AsyncLock = require('async-lock');
 
 import {Movie} from '../movie';
 import {conf, env} from '../environment';
-import {ScrapeRule, Source, cookify} from './source';
+import {RulesEntried, RulesBuilder, Source, cookify} from './source';
 
 export const sourceTag = 'JavLibrary';
 
@@ -15,22 +15,27 @@ const rules = {
   producer: ['span.maker > a', 'text', 'single'],
   publisher: ['span.label > a', 'text', 'single'],
   score: ['span.score', 'text', 'single'],
-  genres: ['div#video_genres >>> span.genre > a', 'text', 'multi'],
+  genres: ['span.genre > a', 'text', 'multi'],
+  genreIDs: ['span.genre', ['attr', 'id'], 'multi'],
   actresses: ['span.star > a', 'text', 'multi'],
+  actressIDs: ['span.cast', ['attr', 'id'], 'multi'],
   cover: ['img#video_jacket_img', ['attr', 'src'], 'single'],
   thumbs: [
     'div.previewthumbs > a:not(.btn_videoplayer)',
     ['attr', 'href'],
     'multi',
   ],
-} as {[Name: string]: ScrapeRule};
+} as Partial<RulesBuilder<Movie>>;
 
-async function collectOne(page: Page): Promise<Partial<Movie> | null> {
+async function collectOne(
+  page: Page,
+  jobId: number
+): Promise<Partial<Movie> | null> {
   try {
-    const keys = [] as string[];
+    const keys = [] as (keyof Movie)[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const running = [] as Promise<any>[];
-    for (const [key, rule] of Object.entries(rules)) {
+    for (const [key, rule] of Object.entries(rules) as RulesEntried) {
       const [selector, attr, isSingle] = rule;
       const isAttribute = attr !== 'text';
       keys.push(key);
@@ -75,13 +80,14 @@ async function collectOne(page: Page): Promise<Partial<Movie> | null> {
 
     const output: Partial<Movie> = {};
     for (let i = 0; i < resolved.length; ++i) {
-      // @ts-ignore
       output[keys[i]] = resolved[i];
     }
 
-    // deal with some meta info
+    // Deal with some meta info
     output.srcProxied = true;
+    output.urls = [page.url()];
 
+    // Sanitize the date
     if (output.title && output.ID && output.title.startsWith(output.ID)) {
       output.title = output.title.substring(output.ID.length);
     }
@@ -95,18 +101,13 @@ async function collectOne(page: Page): Promise<Partial<Movie> | null> {
       }
     }
     if (output.score) {
-      // console.log(`|${output.score}|`);
       const matched = /\((\d\.\d\d)\)/.exec(output.score);
-      // console.log(matched, matched?.groups);
-      if (matched) {
-        output.score = matched[1];
-      }
-      // console.log(output.score);
+      if (matched) output.score = matched[1];
     }
 
     return output as Partial<Movie>;
   } catch (e) {
-    env.logger.error(e);
+    env.logger.error(`#${jobId} ${e}`);
     return null;
   }
 }
@@ -114,24 +115,25 @@ async function collectOne(page: Page): Promise<Partial<Movie> | null> {
 const javLibSpeedLimit: AsyncLock = new AsyncLock();
 
 export class JavLibrary extends Source {
-  async scrapeMovieFromSource(ID: string) {
+  async scrapeMovieFromSource(ID: string, jobId: number) {
     let browser = env.browser;
 
     if (env.browserProxied) {
       browser = env.browserProxied;
     } else {
       env.logger.warn(
-        'Source JavLibrary prefers proxy but proxy is not set, using unproxied browser...'
+        `#${jobId} Source JavLibrary prefers proxy but proxy is not set, using unproxied browser...`
       );
     }
 
     const urlString = `https://www.javlibrary.com/${conf.locale}/vl_searchbyid.php?keyword=${ID}`;
     const url = new URL(urlString);
-    env.logger.info(`Scraping from ${url}`);
+    env.logger.info(`#${jobId} Scraping from ${url}`);
 
     await javLibSpeedLimit.acquire(
       'javlib',
-      async () => await Bun.sleep(conf.sources.javLib.timeout)
+      // @ts-ignore
+      async () => await Bun.sleep(conf.sources.javLib.interval)
     );
     const page = await browser.newPage();
 
@@ -145,7 +147,6 @@ export class JavLibrary extends Source {
     try {
       await page.goto(urlString);
       const url = page.url();
-      env.logger.log(url);
 
       if (url.match(/.*vl_searchbyid.*/)) {
         // Either we have no match or we have too many match
@@ -171,16 +172,18 @@ export class JavLibrary extends Source {
 
           const targetUrl = `https://www.javlibrary.com/${conf.locale}/${relativeUrl}`;
 
-          env.logger.info(`Going to candidate "${title}" at ${targetUrl}`);
+          env.logger.info(
+            `#${jobId} Going to candidate "${title}" at ${targetUrl}`
+          );
           await page.goto(targetUrl);
-          const cur = await collectOne(page);
+          const cur = await collectOne(page, jobId);
           if (cur !== null) {
             result.push(cur);
           }
         }
         return result;
       } else {
-        const result = await collectOne(page);
+        const result = await collectOne(page, jobId);
         if (result === null) {
           return [];
         } else {
@@ -188,7 +191,7 @@ export class JavLibrary extends Source {
         }
       }
     } catch (e) {
-      env.logger.error(e);
+      env.logger.error(`#${jobId} ${e}`);
       return [];
     } finally {
       await page.close();

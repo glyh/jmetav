@@ -1,10 +1,19 @@
 import {ConsolaInstance, createConsola, LogLevel} from 'consola';
 import {Browser, launch} from 'puppeteer';
 import {Liquid} from 'liquidjs';
+import {Knex} from 'knex';
+import knex = require('knex');
 
 export type MatchRuleConfig = readonly [string, string, string];
 
+import {JavLibrary} from './sources/javLib';
+
+export const sourcesMap = {
+  JavLibrary: JavLibrary,
+};
+
 export type Config = {
+  databasePath: string;
   from: string;
   to: string | null;
   logLevel: LogLevel;
@@ -28,12 +37,13 @@ export type Config = {
   };
   sources: {
     javLib: {
-      timeout: number;
+      interval: number;
     };
   };
 };
 
 export const defaultConfig = {
+  databasePath: ':memory:',
   from: '.',
   // logLevel is set by arg parser
   hang: false,
@@ -76,7 +86,7 @@ export const defaultConfig = {
   },
   sources: {
     javLib: {
-      timeout: 3000,
+      interval: 3000,
     },
   },
 } as Config;
@@ -86,9 +96,10 @@ export type Environment = {
   templater: Liquid;
   browser: Browser;
   browserProxied: Browser | null;
+  db: Knex;
 };
 
-export const env = {} as Environment;
+export let env = {} as Environment;
 export let conf = {} as Config;
 
 async function generateBrowser(conf: Config, proxied: boolean) {
@@ -104,20 +115,64 @@ async function generateBrowser(conf: Config, proxied: boolean) {
   });
 }
 
+async function installTables(db: Knex) {
+  // TODO: https://knexjs.org/guide/#typescript
+  for (const scrapKey in ['genres', 'actresses']) {
+    const infoTable = `${scrapKey}$info`;
+    if (!(await db.schema.hasTable(infoTable))) {
+      await db.schema.createTable(infoTable, table => {
+        table.increments('ID').primary();
+        table.string('source');
+        table.string('scrapeID');
+        table.unique(['source', 'scrapeID']);
+        table.string('preferredRepresentation');
+        table.timestamps();
+      });
+    }
+    const mapTable = `${scrapKey}$map`;
+    if (!(await db.schema.hasTable(mapTable))) {
+      await db.schema.createTable(mapTable, table => {
+        table.increments('ID').primary();
+        table.string('source');
+        table.string('scrapeID');
+        table.unique(['source', 'scrapeID']);
+        table.integer('targetID').unsigned();
+        table.foreign('targetID').references(`${scrapKey}$info.ID`);
+        table.timestamps();
+      });
+    }
+  }
+}
+
 export async function loadConfig(config: Config) {
   conf = config;
-  env.browser = await generateBrowser(conf, false);
-  if (conf.scraper.proxy) {
-    env.browserProxied = await generateBrowser(conf, true);
-  } else {
-    env.browserProxied = null;
-  }
-  env.templater = new Liquid();
-  env.logger = createConsola({level: conf.logLevel});
+  env = {
+    browser: await generateBrowser(conf, false),
+    browserProxied: conf.scraper.proxy
+      ? await generateBrowser(conf, true)
+      : null,
+    templater: new Liquid(),
+    logger: createConsola({level: conf.logLevel}),
+    db: knex({
+      // better-sqlite3 won't work
+      // https://github.com/oven-sh/bun/issues/4290
+      client: 'sqlite3',
+      connection: {
+        filename: conf.databasePath,
+      },
+      useNullAsDefault: true,
+    }),
+  };
+  installTables(env.db);
 }
 export async function destroyEnvironment() {
+  env.logger.info('Gracefully shutting down...');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const todo = [] as Promise<any>[];
   if (env.browserProxied) {
-    await env.browserProxied.close();
+    todo.push(env.browserProxied.close());
   }
-  await env.browser.close();
+  todo.push(env.browser.close());
+  todo.push(env.db.destroy());
+  await Promise.all(todo);
 }

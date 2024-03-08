@@ -67,18 +67,22 @@ program
 
     const jl = new JavLibrary();
     const promises: Promise<void>[] = [];
+    let jobId = 0;
     for await (const [path, id, idTag] of detect()) {
-      const p = jl.scrapeMovieFromSource(id).then(async movies => {
+      jobId++;
+      const p = jl.scrapeMovieFromSource(id, jobId).then(async movies => {
         const pool: Promise<boolean>[] = [];
         for (let m of movies) {
           if (m.ID) {
-            m = sanitizeMovie(m);
+            m = sanitizeMovie(m, jobId);
             env.logger.info(m);
-            pool.push(saveNFO(m));
+            pool.push(saveNFO(m, jobId));
           }
         }
         if (pool.length === 0) {
-          env.logger.error(`Failed to grab information for ${id} at ${path}`);
+          env.logger.error(
+            `#${jobId} Failed to grab information for ${id} at ${path}`
+          );
         } else {
           await Promise.all(pool);
         }

@@ -1,14 +1,13 @@
 import axios from 'axios';
-import {createWriteStream} from 'fs';
+import {createWriteStream, promises as fsp} from 'fs';
 import * as XmlBuilder from 'xmlbuilder2';
-
-import {Movie} from './movie';
-import { env, conf } from './environment';
-
-import {promises as fsp} from 'fs';
 import * as path from 'path';
 
-export function sanitizeMovie(m: Partial<Movie>): Partial<Movie> {
+import {Movie} from './movie';
+import {env, conf} from './environment';
+
+export function sanitizeMovie(m: Partial<Movie>, jobId: number): Partial<Movie> {
+  // Register
   return m;
 }
 
@@ -49,7 +48,7 @@ export async function downloadFile(
   });
 }
 
-export async function saveNFO(movie: Partial<Movie>) {
+export async function saveNFO(movie: Partial<Movie>, jobId: number) {
   let builder = XmlBuilder.create({version: '1.0'});
   builder = builder.ele('movie'); // <movie>
   if (movie.plot) builder = builder.ele('plot').txt(movie.plot).up();
@@ -86,7 +85,8 @@ export async function saveNFO(movie: Partial<Movie>) {
   const xml = builder.end({prettyPrint: true});
   const nfoPath = path.join(targetPath, 'movie.nfo');
   pool.push(fsp.writeFile(nfoPath, xml));
-  env.logger.info(`Writing nfo to ${nfoPath} with cover to ${coverPath}`);
+  env.logger.info(
+    `#${jobId} Writing nfo to ${nfoPath} with cover to ${coverPath}`);
   await Promise.all(pool);
   return true;
 }

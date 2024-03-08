@@ -22,22 +22,27 @@
   "devDependencies": {
     "gts": "^5.2.0",
     "typescript": "^5.2.0",
-    "@types/node": "20.8.2",
-    "@types/mustache": "^4.2.5"
+    "@types/async-lock": "^1.4.2",
+    "@types/mustache": "^4.2.5",
+    "@types/node": "20.8.2"
   },
   "dependencies": {
     "@commander-js/extra-typings": "^12.0.1",
     "@iarna/toml": "^2.2.5",
+    "async-lock": "^1.4.1",
     "axios": "^1.6.7",
     "commander": "^12.0.0",
     "consola": "^3.2.3",
+    "knex": "^3.1.0",
     "liquidjs": "^10.10.1",
     "mustache": "^4.2.0",
     "puppeteer": "^22.4.0",
+    "sqlite3": "^5.1.7",
     "ts-deepmerge": "^7.0.0",
     "ts-duration": "^1.1.0",
     "ts-pattern": "^5.0.8",
-    "typed-duration": "^2.0.0"
+    "typed-duration": "^2.0.0",
+    "xmlbuilder2": "^3.1.1"
   },
   "engines": {
     "node": ">=20.0.0"
